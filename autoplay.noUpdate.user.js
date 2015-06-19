@@ -2,7 +2,7 @@
 // @name Ye Olde Megajump
 // @namespace https://github.com/YeOldeWH/MonsterMinigameWormholeWarp
 // @description A script that runs the Steam Monster Minigame for you.  Now with megajump.  Brought to you by the Ye Olde Wormhole Schemers and DannyDaemonic
-// @version 6.0.4
+// @version 6.0.6
 // @match *://steamcommunity.com/minigame/towerattack*
 // @match *://steamcommunity.com//minigame/towerattack*
 // @grant none
@@ -60,7 +60,12 @@ var isAlreadyRunning = false;
 var refreshTimer = null;
 var currentClickRate = enableAutoClicker ? clickRate : 0;
 var lastLevel = 0;
-var lastLevelTimeTaken = [];
+var lastLevelTimeTaken = [{
+							level: 0,
+							levelsGained: 0,
+							timeStarted: 0,
+							timeTakenInSeconds: 0
+						 }];
 var approxYOWHClients = 0;
 
 var trt_oldCrit = function() {};
@@ -262,7 +267,7 @@ function firstRun() {
 		".bc_time {color: #9AC0FF;}",
 		// Always show ability count
 		".abilitytemplate > a > .abilityitemquantity {visibility: visible; pointer-events: none;}",
-		".tv_ui.wh {background-image: url(http://i.imgur.com/vM1gTFY.gif);}",
+		".tv_ui {background-image: url(http://i.imgur.com/vM1gTFY.gif);}",
 		""
 	];
 	styleNode.textContent = styleText.join("");
@@ -456,12 +461,16 @@ function getTimeleft() {
 }
 
 function updateLevelTimeTracker() {
-	var currentLevel = (lastLevelTimeTaken[0] && lastLevelTimeTaken[0].level) || 0;
-
-	if (currentLevel !== getGameLevel()) {
+	if (lastLevelTimeTaken[0].level !== getGameLevel()) {
 		lastLevelTimeTaken.unshift({level: getGameLevel(),
+									levelsGained: -1,
 									timeStarted: s().m_rgGameData.timestamp,
-									timeTakenInSeconds: s().m_rgGameData.timestamp - s().m_rgGameData.timestamp_level_start});
+									timeTakenInSeconds: -1});
+
+		var previousLevel = lastLevelTimeTaken[1];
+
+		previousLevel.levelsGained = getGameLevel() - previousLevel.level;
+		previousLevel.timeTakenInSeconds = s().m_rgGameData.timestamp - previousLevel.timeStarted;
 	}
 
 	if (lastLevelTimeTaken.length > 10) {
@@ -758,8 +767,18 @@ function levelsPerSec() {
 		return 0;
 	}
 
-	return Math.round(((getGameLevel() - lastLevelTimeTaken.slice(-1).pop().level)
-			/ (s().m_rgGameData.timestamp - lastLevelTimeTaken.slice(-1).pop().timeStarted)) );
+	var timeSpentOnBosses = 0;
+	var levelsGainedFromBosses = 0;
+
+	lastLevelTimeTaken.filter(function(levelInfo) {
+		return isBossLevel(levelInfo.level);
+	}).map(function(levelInfo) {
+		timeSpentOnBosses += levelInfo.timeTakenInSeconds;
+		levelsGainedFromBosses += levelInfo.levelsGained;
+	})
+
+	return Math.round(((getGameLevel() - lastLevelTimeTaken.slice(-1).pop().level - levelsGainedFromBosses)
+			/ (s().m_rgGameData.timestamp - lastLevelTimeTaken.slice(-1).pop().timeStarted - timeSpentOnBosses)) * 1000 ) / 1000;
 }
 
 
